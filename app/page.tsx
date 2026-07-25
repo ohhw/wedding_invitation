@@ -298,7 +298,7 @@ export default function Page() {
           </h3>
 
           <p className="mt-3 text-center text-gray-700 leading-relaxed">
-            서울특별시 강남구 역삼동 123-45 해피웨딩홀
+            경기도 성남시 분당구 야탑로 59, 분당차병원
           </p>
 
           <div className="mt-4 overflow-hidden rounded-lg bg-gray-100">
