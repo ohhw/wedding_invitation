@@ -104,7 +104,7 @@ export default function Page() {
       !(window.Kakao as any).isInitialized()
     ) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window.Kakao as any).init(process.env.NEXT_PUBLIC_KAKAO_APP_KEY);
+      (window.Kakao as any).init("dd6b1af728b7149c84eb502fdf50c7ca");
     }
   }, []);
 
@@ -160,7 +160,7 @@ export default function Page() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (window.Kakao && !(window.Kakao as any).isInitialized()) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (window.Kakao as any).init(process.env.NEXT_PUBLIC_KAKAO_APP_KEY);
+            (window.Kakao as any).init("dd6b1af728b7149c84eb502fdf50c7ca");
           }
         }}
       />
