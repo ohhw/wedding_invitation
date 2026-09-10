@@ -6,19 +6,65 @@ declare global {
   }
 }
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import Image from "next/image";
-import { Pagination } from "swiper/modules";
+import { Navigation, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 
 import "swiper/css";
 import "swiper/css/pagination";
+import "swiper/css/navigation";
+
+const GROOM_NAME = "오현우";
+const BRIDE_NAME = "최인영";
+const GROOM_NAME_EN = "HYUNWOO";
+const BRIDE_NAME_EN = "INYOUNG";
+
+const WEDDING_YEAR = 2026;
+const WEDDING_MONTH_INDEX = 9; // 0-indexed (9 = October)
+const WEDDING_DATE = 25;
+const WEDDING_HOUR = 12; // 24h, 샘플
+const WEDDING_MINUTE = 30;
+
+const VENUE_NAME = "분당차병원";
+const VENUE_ADDRESS = "경기도 성남시 분당구 야탑로 59";
+const VENUE_PHONE = "031-780-5000";
+
+const KAKAO_APP_KEY = "dd6b1af728b7149c84eb502fdf50c7ca";
+
+const WEEKDAY_LABELS_KO = ["일", "월", "화", "수", "목", "금", "토"];
+
+const GALLERY_IMAGES = Array.from(
+  { length: 9 },
+  (_, i) => `https://picsum.photos/400/500?random=${i + 1}`,
+);
+
+const GROOM_ACCOUNT = {
+  bank: "신한은행",
+  number: "110-274-104112",
+  holder: GROOM_NAME,
+};
+
+const BRIDE_ACCOUNT = {
+  bank: "국민은행",
+  number: "220-987-654321",
+  holder: BRIDE_NAME,
+};
+
+function formatKoreanTime(hour: number, minute: number) {
+  const period = hour < 12 ? "오전" : "오후";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${period} ${hour12}시${minute ? ` ${minute}분` : ""}`;
+}
+
+function formatEnglishTime(hour: number, minute: number) {
+  const period = hour < 12 ? "AM" : "PM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${period} ${hour12}:${minute.toString().padStart(2, "0")}`;
+}
 
 export default function Page() {
-  const year = 2026;
-  const month = 9; // October (0-indexed)
-
   type GuestbookEntry = {
     id: string;
     name: string;
@@ -32,6 +78,10 @@ export default function Page() {
     [],
   );
   const [isGuestbookLoading, setIsGuestbookLoading] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [openSide, setOpenSide] = useState<"groom" | "bride" | null>(null);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const loadGuestbookMessages = useCallback(async () => {
     setIsGuestbookLoading(true);
@@ -53,9 +103,24 @@ export default function Page() {
     }
   }, []);
 
-  const handleCopy = async (accountNumber: string) => {
-    await navigator.clipboard.writeText(accountNumber);
-    alert("계좌번호가 복사되었습니다.");
+  const handleCopy = async (text: string, successMessage = "복사되었습니다.") => {
+    await navigator.clipboard.writeText(text);
+    alert(successMessage);
+  };
+
+  const toggleMusic = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (isMusicPlaying) {
+      audio.pause();
+      setIsMusicPlaying(false);
+    } else {
+      audio.play().catch(() => {
+        // 샘플 음원이 없을 수 있으므로 재생 실패는 무시합니다.
+      });
+      setIsMusicPlaying(true);
+    }
   };
 
   const handleGuestbookSubmit = async (e: React.FormEvent) => {
@@ -97,14 +162,12 @@ export default function Page() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (
-      window.Kakao &&
-      (window.Kakao as any).isInitialized &&
-      !(window.Kakao as any).isInitialized()
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window.Kakao as any).init("dd6b1af728b7149c84eb502fdf50c7ca");
+    const kakao = window.Kakao as
+      | { isInitialized?: () => boolean; init: (key: string) => void }
+      | undefined;
+
+    if (kakao?.isInitialized && !kakao.isInitialized()) {
+      kakao.init(KAKAO_APP_KEY);
     }
   }, []);
 
@@ -122,8 +185,8 @@ export default function Page() {
       (window.Kakao as any).Share.sendDefault({
         objectType: "feed",
         content: {
-          title: "오현우 & 최인영 결혼식에 초대합니다",
-          description: "2027년 10월 30일 12시 34분, 분당차병원",
+          title: `${GROOM_NAME} & ${BRIDE_NAME} 결혼식에 초대합니다`,
+          description: `${WEDDING_YEAR}년 ${WEDDING_MONTH_INDEX + 1}월 ${WEDDING_DATE}일 ${formatKoreanTime(WEDDING_HOUR, WEDDING_MINUTE)}, ${VENUE_NAME}`,
           imageUrl: "https://picsum.photos/400/600",
           link: {
             webUrl: window.location.href,
@@ -133,10 +196,19 @@ export default function Page() {
     }
   };
 
-  const firstDayIndex = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayIndex = new Date(WEDDING_YEAR, WEDDING_MONTH_INDEX, 1).getDay();
+  const daysInMonth = new Date(WEDDING_YEAR, WEDDING_MONTH_INDEX + 1, 0).getDate();
   const blanks = Array.from({ length: firstDayIndex });
   const dates = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  const weddingDate = new Date(WEDDING_YEAR, WEDDING_MONTH_INDEX, WEDDING_DATE);
+  const weddingWeekday = WEEKDAY_LABELS_KO[weddingDate.getDay()];
+  const weddingDateEn = weddingDate.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
   const today = new Date();
   const todayMid = new Date(
@@ -144,10 +216,9 @@ export default function Page() {
     today.getMonth(),
     today.getDate(),
   );
-  const targetMid = new Date(year, month, 25);
   const msPerDay = 1000 * 60 * 60 * 24;
   const diffDays = Math.ceil(
-    (targetMid.getTime() - todayMid.getTime()) / msPerDay,
+    (weddingDate.getTime() - todayMid.getTime()) / msPerDay,
   );
 
   return (
@@ -160,23 +231,96 @@ export default function Page() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (window.Kakao && !(window.Kakao as any).isInitialized()) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (window.Kakao as any).init("dd6b1af728b7149c84eb502fdf50c7ca");
+            (window.Kakao as any).init(KAKAO_APP_KEY);
           }
         }}
       />
       <main className="max-w-md mx-auto min-h-screen bg-white text-gray-800 shadow-lg flex flex-col items-center">
-        <div className="w-full">
+        {/* 커버 */}
+        <div className="relative w-full">
           <Image
             src="https://picsum.photos/400/600"
             alt="Wedding"
             width={400}
             height={600}
             className="w-full h-auto object-cover"
-            priority
+            preload
           />
+
+          <audio ref={audioRef} src="/audio/bgm-sample.mp3" loop />
+
+          <button
+            type="button"
+            onClick={toggleMusic}
+            aria-label={isMusicPlaying ? "배경음악 정지" : "배경음악 재생"}
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-sm"
+          >
+            {isMusicPlaying ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <rect x="4" y="4" width="16" height="16" rx="4" />
+                <path d="M9 9v6m6-6v6" />
+              </svg>
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <path d="M9 18V5l12-2v13" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg>
+            )}
+          </button>
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-10 flex flex-col items-center gap-3 px-6 text-center text-white">
+            <p className="font-serif text-3xl tracking-[0.25em] drop-shadow-md">
+              {GROOM_NAME_EN}
+              <span className="mx-2 align-middle text-xl">&amp;</span>
+              {BRIDE_NAME_EN}
+            </p>
+            <p className="text-sm tracking-wide drop-shadow-md">
+              {WEDDING_YEAR}년 {WEDDING_MONTH_INDEX + 1}월 {WEDDING_DATE}일{" "}
+              {weddingWeekday}요일 {formatKoreanTime(WEDDING_HOUR, WEDDING_MINUTE)}
+            </p>
+            <p className="text-xs tracking-wide text-white/80 drop-shadow-md">
+              {VENUE_NAME}
+            </p>
+          </div>
         </div>
 
+        {/* 인사말 */}
         <section className="px-6 py-8 text-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 60 24"
+            className="mx-auto mb-4 h-5 w-14 text-gray-300"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1}
+          >
+            <path d="M2 12c10-8 16 4 28 0s18-8 28 0" strokeLinecap="round" />
+            <path
+              d="M30 8c-2-3-6-3-7 0-1-3-5-3-7 0 0 3 7 8 7 8s7-5 7-8z"
+              fill="currentColor"
+              stroke="none"
+            />
+          </svg>
+
           <h2 className="text-2xl font-semibold text-gray-900">초대합니다</h2>
 
           <p className="mt-4 text-gray-700 leading-relaxed">
@@ -186,13 +330,28 @@ export default function Page() {
             <br />
             따뜻한 축복과 함께 자리해 주시면 감사하겠습니다.
           </p>
+
+          <p className="mt-6 text-sm tracking-wide text-gray-600">
+            신랑 {GROOM_NAME} · 신부 {BRIDE_NAME}
+          </p>
         </section>
 
+        {/* Wedding Day */}
         <section className="w-full px-6 pb-8">
-          <h3 className="text-lg font-medium text-gray-900 text-center">{`${year}년 ${month + 1}월 25일`}</h3>
+          <h3 className="text-center font-serif text-xl tracking-[0.2em] text-gray-900">
+            WEDDING DAY
+          </h3>
+
+          <p className="mt-3 text-center text-sm text-gray-700">
+            {WEDDING_YEAR}년 {WEDDING_MONTH_INDEX + 1}월 {WEDDING_DATE}일{" "}
+            {weddingWeekday}요일 · {formatKoreanTime(WEDDING_HOUR, WEDDING_MINUTE)}
+          </p>
+          <p className="text-center text-xs tracking-wide text-gray-400">
+            {weddingDateEn} · {formatEnglishTime(WEDDING_HOUR, WEDDING_MINUTE)}
+          </p>
 
           <div className="mt-4 grid grid-cols-7 gap-2 text-center text-sm font-medium">
-            {["일", "월", "화", "수", "목", "금", "토"].map((d, idx) => (
+            {WEEKDAY_LABELS_KO.map((d, idx) => (
               <div
                 key={d}
                 className={idx === 0 ? "text-red-500" : "text-gray-600"}
@@ -208,8 +367,12 @@ export default function Page() {
             ))}
 
             {dates.map((d) => {
-              const weekday = new Date(year, month, d).getDay();
-              const isWedding = d === 25;
+              const weekday = new Date(
+                WEDDING_YEAR,
+                WEDDING_MONTH_INDEX,
+                d,
+              ).getDay();
+              const isWedding = d === WEDDING_DATE;
               const dayTextClass =
                 weekday === 0 ? "text-red-500" : "text-gray-700";
 
@@ -227,79 +390,98 @@ export default function Page() {
             })}
           </div>
 
-          <div className="mt-6 text-center">
-            <div className="text-sm text-gray-600">결혼식까지 남은 기간</div>
-            <div className="mt-2 text-xl font-semibold">
-              D-Day {Math.max(diffDays, 0)}
-            </div>
+          <div className="mt-6 text-center text-sm text-gray-600">
+            {GROOM_NAME} <span aria-hidden>❤</span> {BRIDE_NAME} 결혼식이{" "}
+            {diffDays > 0
+              ? `${diffDays}일 남았습니다`
+              : diffDays === 0
+                ? "오늘입니다"
+                : "지났습니다"}
           </div>
         </section>
 
+        {/* GALLERY */}
         <section className="w-full px-6 pb-10">
-          <h3 className="text-lg font-medium text-gray-900 text-center">
-            갤러리
+          <h3 className="text-center font-serif text-xl tracking-[0.2em] text-gray-900">
+            GALLERY
           </h3>
+          <p className="mt-2 text-center text-xs text-gray-400">
+            사진을 클릭하시면 전체 화면으로 볼 수 있습니다
+          </p>
 
-          <div className="mt-4">
-            <Swiper
-              modules={[Pagination]}
-              spaceBetween={16}
-              slidesPerView={1}
-              pagination={{ clickable: true }}
-              className="w-full"
-            >
-              {[
-                "https://picsum.photos/400/500?random=1",
-                "https://picsum.photos/400/500?random=2",
-                "https://picsum.photos/400/500?random=3",
-                "https://picsum.photos/400/500?random=4",
-                "https://picsum.photos/400/500?random=5",
-              ].map((src, index) => (
-                <SwiperSlide key={src}>
-                  <div className="overflow-hidden rounded-lg bg-gray-100">
-                    <Image
-                      src={src}
-                      alt={`갤러리 사진 ${index + 1}`}
-                      width={400}
-                      height={500}
-                      className="h-auto w-full object-cover rounded-lg"
-                    />
-                  </div>
-                </SwiperSlide>
-              ))}
-            </Swiper>
-          </div>
-        </section>
-
-        {/* 3x3 웨딩 스냅샷 그리드 섹션 */}
-        <section className="py-8 px-4 bg-white">
-          <h3 className="text-center text-lg font-semibold text-gray-800 mb-6 tracking-wide">
-            WEDDING SNAPSHOTS
-          </h3>
-          <div className="grid grid-cols-3 gap-2">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-              <div
-                key={num}
-                className="aspect-square relative overflow-hidden rounded-lg bg-gray-100 shadow-sm"
+          <div className="mt-5 grid grid-cols-3 gap-1.5">
+            {GALLERY_IMAGES.map((src, index) => (
+              <button
+                key={src}
+                type="button"
+                onClick={() => setLightboxIndex(index)}
+                className="relative aspect-[4/5] overflow-hidden bg-gray-100"
               >
-                <img
-                  src={`https://picsum.photos/300/300?random=${num + 20}`}
-                  alt={`웨딩 스냅샷 ${num}`}
-                  className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+                <Image
+                  src={src}
+                  alt={`갤러리 사진 ${index + 1}`}
+                  fill
+                  sizes="(max-width: 448px) 33vw, 150px"
+                  className="object-cover"
                 />
-              </div>
+              </button>
             ))}
           </div>
         </section>
 
+        {/* LOCATION */}
         <section className="w-full px-6 pb-12">
-          <h3 className="text-lg font-medium text-gray-900 text-center">
-            오시는 길
+          <h3 className="text-center font-serif text-xl tracking-[0.2em] text-gray-900">
+            LOCATION
           </h3>
 
-          <p className="mt-3 text-center text-gray-700 leading-relaxed">
-            경기도 성남시 분당구 야탑로 59, 분당차병원
-          </p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <span className="text-base font-medium text-gray-900">
+              {VENUE_NAME}
+            </span>
+            <a
+              href={`tel:${VENUE_PHONE}`}
+              aria-label="예식장에 전화하기"
+              className="text-gray-400"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <path d="M6.6 10.8a13 13 0 006.6 6.6l2.2-2.2a1 1 0 011-.25 9 9 0 002.8.45 1 1 0 011 1V19a1 1 0 01-1 1A15 15 0 014 5a1 1 0 011-1h2.5a1 1 0 011 1 9 9 0 00.45 2.8 1 1 0 01-.25 1z" />
+              </svg>
+            </a>
+          </div>
+
+          <div className="mt-1 flex items-center justify-center gap-2">
+            <span className="text-sm text-gray-600">{VENUE_ADDRESS}</span>
+            <button
+              type="button"
+              onClick={() => handleCopy(VENUE_ADDRESS, "주소가 복사되었습니다.")}
+              aria-label="주소 복사하기"
+              className="text-gray-400"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <rect x="9" y="9" width="11" height="11" rx="2" />
+                <path d="M5 15V5a2 2 0 012-2h10" />
+              </svg>
+            </button>
+          </div>
 
           <div className="mt-4 overflow-hidden rounded-lg bg-gray-100">
             <Image
@@ -332,62 +514,183 @@ export default function Page() {
             </a>
           </div>
 
-          <ul className="mt-5 space-y-2 rounded-lg bg-gray-50 p-4 text-sm text-gray-700">
-            <li>• 지하철: 2호선 역삼역 3번 출구에서 도보 7분</li>
-            <li>• 버스: 강남역 정류장 하차 후 도보 5분</li>
-            <li>• 주차장: 예식장 지하주차장 이용 가능</li>
-          </ul>
+          <div className="mt-6 space-y-5 text-sm text-gray-700">
+            <div className="flex gap-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mt-0.5 h-5 w-5 shrink-0 text-gray-400"
+              >
+                <path d="M3 13l1.5-4.5A2 2 0 016.4 7h11.2a2 2 0 011.9 1.5L21 13" />
+                <rect x="2" y="13" width="20" height="5" rx="1.5" />
+                <circle cx="7" cy="18.5" r="1.5" />
+                <circle cx="17" cy="18.5" r="1.5" />
+              </svg>
+              <div>
+                <div className="font-semibold text-gray-900">자차</div>
+                <p className="mt-1 leading-relaxed">
+                  내비게이션 검색명: &apos;{VENUE_NAME}&apos;
+                  <br />
+                  정확한 주소: {VENUE_ADDRESS}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mt-0.5 h-5 w-5 shrink-0 text-gray-400"
+              >
+                <rect x="4" y="4" width="16" height="13" rx="2" />
+                <path d="M4 11h16" />
+                <circle cx="8" cy="19.5" r="1.5" />
+                <circle cx="16" cy="19.5" r="1.5" />
+              </svg>
+              <div>
+                <div className="font-semibold text-gray-900">버스</div>
+                <p className="mt-1 leading-relaxed">
+                  예식장 앞 정류장 하차 (샘플)
+                  <br />
+                  주요 노선: 720, 730, 900
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mt-0.5 h-5 w-5 shrink-0 text-gray-400"
+              >
+                <rect x="5" y="3" width="14" height="14" rx="4" />
+                <path d="M5 12h14" />
+                <circle cx="9" cy="8" r="1" />
+                <circle cx="15" cy="8" r="1" />
+                <path d="M8 21l1.5-3M16 21l-1.5-3" />
+              </svg>
+              <div>
+                <div className="font-semibold text-gray-900">지하철</div>
+                <p className="mt-1 leading-relaxed">
+                  분당선 이매역 3번 출구에서 도보 5분 (샘플)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mt-0.5 h-5 w-5 shrink-0 text-gray-400"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M9 16V8h3.5a2.5 2.5 0 010 5H9" />
+              </svg>
+              <div>
+                <div className="font-semibold text-gray-900">주차</div>
+                <p className="mt-1 leading-relaxed">
+                  예식장 지하주차장 이용 가능 (하객 2시간 무료, 샘플)
+                </p>
+              </div>
+            </div>
+          </div>
         </section>
 
+        {/* 마음 전하실 곳 */}
         <section className="w-full px-6 pb-14">
-          <h3 className="text-lg font-medium text-gray-900 text-center">
-            마음 전하기
+          <h3 className="text-center font-serif text-xl tracking-[0.2em] text-gray-900">
+            마음 전하실 곳
           </h3>
 
           <p className="mt-3 text-center text-sm leading-relaxed text-gray-600">
             참석하지 못하시더라도 축하해 주시는 마음 감사히 받겠습니다.
           </p>
 
-          <div className="mt-5 space-y-4">
-            <div className="rounded-lg bg-gray-50 p-4">
-              <div className="text-sm font-semibold text-gray-900">
-                신랑 측 계좌
-              </div>
-              <div className="mt-2 text-sm text-gray-700">신한은행</div>
+          <div className="mt-5 space-y-3">
+            {(
+              [
+                { key: "groom" as const, label: "신랑측에게", account: GROOM_ACCOUNT },
+                { key: "bride" as const, label: "신부측에게", account: BRIDE_ACCOUNT },
+              ]
+            ).map((side) => {
+              const isOpen = openSide === side.key;
 
-              <div className="mt-2 flex flex-col gap-2">
-                <div className="text-sm text-gray-800">110-274-104112</div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy("110-274-104112")}
-                  className="w-fit rounded bg-gray-200 px-3 py-1 text-sm"
-                >
-                  복사하기
-                </button>
-              </div>
+              return (
+                <div key={side.key} className="rounded-lg bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => setOpenSide(isOpen ? null : side.key)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-gray-900"
+                  >
+                    {side.label}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`h-4 w-4 text-gray-400 transition-transform ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
 
-              <div className="mt-2 text-sm text-gray-700">예금주: 오현우</div>
-            </div>
+                  {isOpen && (
+                    <div className="px-4 pb-4">
+                      <div className="text-sm text-gray-700">
+                        {side.account.bank}
+                      </div>
 
-            <div className="rounded-lg bg-gray-50 p-4">
-              <div className="text-sm font-semibold text-gray-900">
-                신부 측 계좌
-              </div>
-              <div className="mt-2 text-sm text-gray-700">국민은행</div>
+                      <div className="mt-2 flex flex-col gap-2">
+                        <div className="text-sm text-gray-800">
+                          {side.account.number}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleCopy(
+                              side.account.number,
+                              "계좌번호가 복사되었습니다.",
+                            )
+                          }
+                          className="w-fit rounded bg-gray-200 px-3 py-1 text-sm"
+                        >
+                          복사하기
+                        </button>
+                      </div>
 
-              <div className="mt-2 flex flex-col gap-2">
-                <div className="text-sm text-gray-800">220-987-654321</div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy("220-987-654321")}
-                  className="w-fit rounded bg-gray-200 px-3 py-1 text-sm"
-                >
-                  복사하기
-                </button>
-              </div>
-
-              <div className="mt-2 text-sm text-gray-700">예금주: 최인영</div>
-            </div>
+                      <div className="mt-2 text-sm text-gray-700">
+                        예금주: {side.account.holder}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
 
@@ -430,6 +733,7 @@ export default function Page() {
           </a>
         </section>
 
+        {/* 방명록 */}
         <section className="w-full px-6 pb-10">
           <h3 className="text-lg font-medium text-gray-900 text-center">
             방명록
@@ -495,8 +799,26 @@ export default function Page() {
           </div>
         </section>
 
-        <section className="w-full px-6 pb-10">
-          <h3 className="text-lg font-medium text-gray-900 text-center">
+        {/* 마무리 */}
+        <section className="relative w-full">
+          <Image
+            src="https://picsum.photos/400/500?random=99"
+            alt="마무리 사진"
+            width={400}
+            height={500}
+            className="h-auto w-full object-cover"
+          />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 px-8 text-center">
+            <p className="font-serif text-base leading-relaxed text-white drop-shadow-md">
+              귀한 발걸음으로 참석해주시는
+              <br />
+              모든 분들께 진심으로 감사드립니다
+            </p>
+          </div>
+        </section>
+
+        <section className="w-full px-6 py-10">
+          <h3 className="text-center font-serif text-xl tracking-[0.2em] text-gray-900">
             청첩장 공유하기
           </h3>
 
@@ -507,15 +829,80 @@ export default function Page() {
           >
             카카오톡으로 공유하기
           </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              handleCopy(window.location.href, "청첩장 주소가 복사되었습니다.")
+            }
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 py-3 text-sm font-medium text-gray-700"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15V5a2 2 0 012-2h10" />
+            </svg>
+            청첩장 주소 복사하기
+          </button>
         </section>
 
         {/* 카피라이트 섹션 */}
-        <footer className="w-full py-8 text-center border-t border-gray-100 bg-white mt-10">
+        <footer className="w-full py-8 text-center border-t border-gray-100 bg-white mt-2">
           <p className="text-xs text-gray-400 font-light tracking-widest">
             © 2026 Oh. All rights reserved.
           </p>
         </footer>
       </main>
+
+      {lightboxIndex !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 px-4"
+          onClick={() => setLightboxIndex(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxIndex(null)}
+            aria-label="닫기"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-2xl text-white"
+          >
+            ×
+          </button>
+
+          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <Swiper
+              modules={[Navigation]}
+              navigation
+              initialSlide={lightboxIndex}
+              slidesPerView={1}
+              style={
+                {
+                  "--swiper-navigation-color": "#fff",
+                  "--swiper-navigation-size": "20px",
+                } as React.CSSProperties
+              }
+            >
+              {GALLERY_IMAGES.map((src, index) => (
+                <SwiperSlide key={src}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt={`갤러리 사진 ${index + 1} 전체화면`}
+                    className="mx-auto max-h-[80vh] w-auto object-contain"
+                  />
+                </SwiperSlide>
+              ))}
+            </Swiper>
+          </div>
+        </div>
+      )}
     </>
   );
 }
