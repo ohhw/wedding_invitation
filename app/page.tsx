@@ -82,6 +82,31 @@ export default function Page() {
   const [openSide, setOpenSide] = useState<"groom" | "bride" | null>(null);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [toast, setToast] = useState<
+    { message: string; tone: "success" | "error" } | null
+  >(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  const showToast = useCallback(
+    (message: string, tone: "success" | "error" = "success") => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+      setToast({ message, tone });
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast(null);
+      }, 2000);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
 
   const loadGuestbookMessages = useCallback(async () => {
     setIsGuestbookLoading(true);
@@ -105,7 +130,7 @@ export default function Page() {
 
   const handleCopy = async (text: string, successMessage = "복사되었습니다.") => {
     await navigator.clipboard.writeText(text);
-    alert(successMessage);
+    showToast(successMessage);
   };
 
   const toggleMusic = () => {
@@ -127,7 +152,7 @@ export default function Page() {
     e.preventDefault();
 
     if (!guestName.trim() || !guestMessage.trim()) {
-      alert("이름과 메시지를 모두 입력해 주세요.");
+      showToast("이름과 메시지를 모두 입력해 주세요.", "error");
       return;
     }
 
@@ -146,16 +171,16 @@ export default function Page() {
       });
 
       if (response.ok) {
-        alert("축하 메시지가 등록되었습니다!");
+        showToast("축하 메시지가 등록되었습니다!");
         setGuestName("");
         setGuestMessage("");
         await loadGuestbookMessages();
       } else {
-        alert("메시지를 저장하는 중에 오류가 발생했습니다.");
+        showToast("메시지를 저장하는 중에 오류가 발생했습니다.", "error");
       }
     } catch (error) {
       console.error("오류:", error);
-      alert("메시지를 저장하는 중에 오류가 발생했습니다.");
+      showToast("메시지를 저장하는 중에 오류가 발생했습니다.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -900,6 +925,23 @@ export default function Page() {
                 </SwiperSlide>
               ))}
             </Swiper>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          className="fixed inset-x-0 bottom-6 z-60 flex justify-center px-6"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div
+            role="status"
+            aria-live="polite"
+            className={`max-w-xs animate-[toast-in_0.2s_ease-out] rounded-full px-5 py-3 text-center text-sm font-medium text-white shadow-lg ${
+              toast.tone === "error" ? "bg-red-500" : "bg-gray-900/90"
+            }`}
+          >
+            {toast.message}
           </div>
         </div>
       )}
