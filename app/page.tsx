@@ -903,9 +903,11 @@ export default function Page() {
 
           <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <Swiper
+              key={lightboxIndex}
               modules={[Navigation]}
               navigation
               initialSlide={lightboxIndex}
+              onSwiper={(swiper) => swiper.slideTo(lightboxIndex, 0)}
               slidesPerView={1}
               style={
                 {
