@@ -440,7 +440,7 @@ export default function Page() {
                 key={src}
                 type="button"
                 onClick={() => setLightboxIndex(index)}
-                className="relative aspect-[4/5] overflow-hidden bg-gray-100"
+                className="relative aspect-4/5 overflow-hidden bg-gray-100"
               >
                 <Image
                   src={src}
