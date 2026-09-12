@@ -55,10 +55,18 @@ type NotionPageResult = {
   properties: Record<
     string,
     {
+      type?: string
       title?: NotionTextItem[]
       rich_text?: NotionTextItem[]
     }
   >
+}
+
+function getPropertyText(
+  property: NotionPageResult['properties'][string] | undefined,
+) {
+  const text = property?.title?.[0] ?? property?.rich_text?.[0]
+  return text?.plain_text ?? text?.text?.content ?? ''
 }
 
 export async function GET() {
@@ -94,26 +102,30 @@ export async function GET() {
 
     const pages = response.results
 
-    const messages = pages.map((page) => {
-      const nameProperty = page.properties['이름'] ?? page.properties['Name']
-      const messageProperty = page.properties['메시지'] ?? page.properties['Message']
+    const messages = pages
+      .map((page) => {
+      const properties = Object.values(page.properties)
+      const nameProperty =
+        page.properties['이름'] ??
+        page.properties['Name'] ??
+        properties.find((property) => property.type === 'title' || property.title)
+      const messageProperty =
+        page.properties['메시지'] ??
+        page.properties['Message'] ??
+        properties.find(
+          (property) => property.type === 'rich_text' || property.rich_text,
+        )
 
-      const name =
-        nameProperty?.title?.[0]?.plain_text ??
-        nameProperty?.title?.[0]?.text?.content ??
-        ''
+      const name = getPropertyText(nameProperty)
+      const message = getPropertyText(messageProperty)
 
-      const message =
-        messageProperty?.rich_text?.[0]?.plain_text ??
-        messageProperty?.rich_text?.[0]?.text?.content ??
-        ''
-
-      return {
-        id: page.id,
-        name,
-        message,
-      }
-    })
+        return {
+          id: page.id,
+          name,
+          message,
+        }
+      })
+      .filter((entry) => entry.name || entry.message)
 
     return NextResponse.json(messages, { status: 200 })
   } catch (error) {
