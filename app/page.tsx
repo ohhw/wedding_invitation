@@ -9,7 +9,7 @@ declare global {
 import { useCallback, useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import Image from "next/image";
-import { Navigation, Pagination } from "swiper/modules";
+import { EffectCoverflow, Navigation, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 
 import "swiper/css";
@@ -21,23 +21,32 @@ const BRIDE_NAME = "최인영";
 const GROOM_NAME_EN = "HYUNWOO";
 const BRIDE_NAME_EN = "INYOUNG";
 
-const WEDDING_YEAR = 2026;
+const WEDDING_YEAR = 2027;
 const WEDDING_MONTH_INDEX = 9; // 0-indexed (9 = October)
-const WEDDING_DATE = 25;
+const WEDDING_DATE = 30;
 const WEDDING_HOUR = 12; // 24h, 샘플
 const WEDDING_MINUTE = 30;
 
 const VENUE_NAME = "분당차병원";
 const VENUE_ADDRESS = "경기도 성남시 분당구 야탑로 59";
 const VENUE_PHONE = "031-780-5000";
+const VENUE_LATITUDE = "37.4117";
+const VENUE_LONGITUDE = "127.1286";
 
 const KAKAO_APP_KEY = "dd6b1af728b7149c84eb502fdf50c7ca";
 
 const WEEKDAY_LABELS_KO = ["일", "월", "화", "수", "목", "금", "토"];
 
+const IMAGE_PATHS = {
+  cover: "/images/cover.jpg",
+  venueExterior: "/images/venue-exterior.jpg",
+  closing: "/images/closing.jpg",
+};
+
 const GALLERY_IMAGES = Array.from(
   { length: 9 },
-  (_, i) => `https://picsum.photos/400/500?random=${i + 1}`,
+  (_, index) =>
+    `/images/gallery-current/gallery-${String(index + 1).padStart(2, "0")}.jpg`,
 );
 
 const GROOM_ACCOUNT = {
@@ -79,13 +88,25 @@ export default function Page() {
   );
   const [isGuestbookLoading, setIsGuestbookLoading] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [featuredIndex, setFeaturedIndex] = useState(0);
   const [openSide, setOpenSide] = useState<"groom" | "bride" | null>(null);
-  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [toast, setToast] = useState<
     { message: string; tone: "success" | "error" } | null
   >(null);
   const toastTimerRef = useRef<number | null>(null);
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxImage(GALLERY_IMAGES[index]);
+  };
+
+  const closeLightbox = () => {
+    setLightboxIndex(null);
+    setLightboxImage(null);
+  };
 
   const showToast = useCallback(
     (message: string, tone: "success" | "error" = "success") => {
@@ -141,12 +162,23 @@ export default function Page() {
       audio.pause();
       setIsMusicPlaying(false);
     } else {
-      audio.play().catch(() => {
-        // 샘플 음원이 없을 수 있으므로 재생 실패는 무시합니다.
-      });
-      setIsMusicPlaying(true);
+      void audio
+        .play()
+        .then(() => setIsMusicPlaying(true))
+        .catch(() => setIsMusicPlaying(false));
     }
   };
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.volume = 0.35;
+    void audio
+      .play()
+      .then(() => setIsMusicPlaying(true))
+      .catch(() => setIsMusicPlaying(false));
+  }, []);
 
   const handleGuestbookSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,7 +244,7 @@ export default function Page() {
         content: {
           title: `${GROOM_NAME} & ${BRIDE_NAME} 결혼식에 초대합니다`,
           description: `${WEDDING_YEAR}년 ${WEDDING_MONTH_INDEX + 1}월 ${WEDDING_DATE}일 ${formatKoreanTime(WEDDING_HOUR, WEDDING_MINUTE)}, ${VENUE_NAME}`,
-          imageUrl: "https://picsum.photos/400/600",
+          imageUrl: `${window.location.origin}${IMAGE_PATHS.cover}`,
           link: {
             webUrl: window.location.href,
           },
@@ -264,7 +296,7 @@ export default function Page() {
         {/* 커버 */}
         <div className="relative w-full">
           <Image
-            src="https://picsum.photos/400/600"
+            src={IMAGE_PATHS.cover}
             alt="Wedding"
             width={400}
             height={600}
@@ -272,7 +304,12 @@ export default function Page() {
             preload
           />
 
-          <audio ref={audioRef} src="/audio/bgm-sample.mp3" loop />
+          <audio
+            ref={audioRef}
+            src="/audio/ceremony-new-age.wav"
+            autoPlay
+            loop
+          />
 
           <button
             type="button"
@@ -408,7 +445,11 @@ export default function Page() {
                       {d}
                     </div>
                   ) : (
-                    <div className={dayTextClass}>{d}</div>
+                    <div
+                      className={`flex h-8 items-center justify-center ${dayTextClass}`}
+                    >
+                      {d}
+                    </div>
                   )}
                 </div>
               );
@@ -431,6 +472,55 @@ export default function Page() {
             GALLERY
           </h3>
           <p className="mt-2 text-center text-xs text-gray-400">
+            사진을 좌우로 넘겨보세요
+          </p>
+
+          <div className="relative mt-5 overflow-visible rounded-lg bg-gray-100">
+            <Swiper
+              modules={[EffectCoverflow, Navigation, Pagination]}
+              effect="coverflow"
+              coverflowEffect={{
+                rotate: 0,
+                stretch: 0,
+                depth: 90,
+                modifier: 1.4,
+                slideShadows: false,
+              }}
+              navigation
+              pagination={{ clickable: true }}
+              centeredSlides
+              centeredSlidesBounds
+              slidesPerView={3}
+              spaceBetween={10}
+              preventClicks={false}
+              preventClicksPropagation={false}
+              onSwiper={(swiper) => setFeaturedIndex(swiper.activeIndex)}
+              onSlideChange={(swiper) => setFeaturedIndex(swiper.activeIndex)}
+              className="gallery-featured h-44"
+            >
+              {GALLERY_IMAGES.map((src, index) => (
+                <SwiperSlide key={`featured-${src}`}>
+                  <div className="relative block h-36 w-full overflow-hidden rounded-lg">
+                    <Image
+                      src={src}
+                      alt={`갤러리 대표 사진 ${index + 1}`}
+                      fill
+                      sizes="(max-width: 448px) 100vw, 448px"
+                      className="object-cover"
+                    />
+                  </div>
+                </SwiperSlide>
+              ))}
+            </Swiper>
+            <button
+              type="button"
+              onClick={() => openLightbox(featuredIndex)}
+              aria-label={`갤러리 사진 ${featuredIndex + 1} 크게 보기`}
+              className="absolute left-1/3 top-4 z-10 h-36 w-1/3 rounded-lg"
+            />
+          </div>
+
+          <p className="mt-3 text-center text-xs text-gray-400">
             사진을 클릭하시면 전체 화면으로 볼 수 있습니다
           </p>
 
@@ -439,8 +529,8 @@ export default function Page() {
               <button
                 key={src}
                 type="button"
-                onClick={() => setLightboxIndex(index)}
-                className="relative aspect-4/5 overflow-hidden bg-gray-100"
+                onClick={() => openLightbox(index)}
+                className="relative aspect-square overflow-hidden bg-gray-100"
               >
                 <Image
                   src={src}
@@ -510,32 +600,59 @@ export default function Page() {
 
           <div className="mt-4 overflow-hidden rounded-lg bg-gray-100">
             <Image
-              src="https://picsum.photos/400/300"
-              alt="오시는 길 약도"
+              src={IMAGE_PATHS.venueExterior}
+              alt="분당차병원 외관"
               width={400}
-              height={300}
+              height={400}
+              loading="lazy"
               className="h-auto w-full object-cover"
             />
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-2">
             <a
-              href="nmap://route/public?dlat=37.5000&dlng=127.0365&dname=%ED%95%B4%ED%94%BC%EC%9B%A8%EB%94%A9%ED%99%80"
-              className="rounded-lg bg-green-500 px-3 py-3 text-center text-sm font-semibold text-white"
+              href={`nmap://route/public?dlat=${VENUE_LATITUDE}&dlng=${VENUE_LONGITUDE}&dname=${encodeURIComponent(VENUE_NAME)}`}
+              className="flex flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-xs font-semibold text-gray-800 shadow-sm"
             >
+              <Image
+                src="/images/map-icons/naver-map.png"
+                alt=""
+                width={48}
+                height={48}
+                unoptimized
+                className="h-12 w-12 object-contain"
+              />
               네이버 지도
             </a>
             <a
-              href="tmap://route?goalx=127.0365&goaly=37.5000&goalname=%ED%95%B4%ED%94%BC%EC%9B%A8%EB%94%A9%ED%99%80"
-              className="rounded-lg bg-blue-500 px-3 py-3 text-center text-sm font-semibold text-white"
+              href={`tmap://route?goalx=${VENUE_LONGITUDE}&goaly=${VENUE_LATITUDE}&goalname=${encodeURIComponent(VENUE_NAME)}`}
+              className="flex flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-xs font-semibold text-gray-800 shadow-sm"
             >
+              <Image
+                src="/images/map-icons/tmap.png"
+                alt=""
+                width={48}
+                height={48}
+                unoptimized
+                className="h-12 w-12 object-contain"
+              />
               티맵
             </a>
             <a
-              href="kakaonavi://navigate?destination=37.5000,127.0365"
-              className="rounded-lg bg-yellow-400 px-3 py-3 text-center text-sm font-semibold text-black"
+              href={`https://map.kakao.com/?q=${encodeURIComponent(VENUE_NAME)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-xs font-semibold text-gray-800 shadow-sm"
             >
-              카카오내비
+              <Image
+                src="/images/map-icons/kakaomap.png"
+                alt=""
+                width={48}
+                height={48}
+                unoptimized
+                className="h-12 w-12 object-contain"
+              />
+              카카오맵
             </a>
           </div>
 
@@ -827,7 +944,7 @@ export default function Page() {
         {/* 마무리 */}
         <section className="relative w-full">
           <Image
-            src="https://picsum.photos/400/500?random=99"
+            src={IMAGE_PATHS.closing}
             alt="마무리 사진"
             width={400}
             height={500}
@@ -882,51 +999,69 @@ export default function Page() {
         {/* 카피라이트 섹션 */}
         <footer className="w-full py-8 text-center border-t border-gray-100 bg-white mt-2">
           <p className="text-xs text-gray-400 font-light tracking-widest">
-            © 2026 Oh. All rights reserved.
+            © 2027 Oh. All rights reserved.
           </p>
         </footer>
       </main>
 
       {lightboxIndex !== null && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="갤러리 사진 확대 보기"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 px-4"
-          onClick={() => setLightboxIndex(null)}
+          onClick={closeLightbox}
         >
           <button
             type="button"
-            onClick={() => setLightboxIndex(null)}
+            onClick={closeLightbox}
             aria-label="닫기"
             className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-2xl text-white"
           >
             ×
           </button>
 
-          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <Swiper
-              key={lightboxIndex}
-              modules={[Navigation]}
-              navigation
-              initialSlide={lightboxIndex}
-              onSwiper={(swiper) => swiper.slideTo(lightboxIndex, 0)}
-              slidesPerView={1}
-              style={
-                {
-                  "--swiper-navigation-color": "#fff",
-                  "--swiper-navigation-size": "20px",
-                } as React.CSSProperties
+          <div
+            className="relative w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative h-[80vh] w-full">
+              <Image
+                src={lightboxImage ?? GALLERY_IMAGES[lightboxIndex]}
+                alt={`갤러리 사진 ${lightboxIndex + 1} 전체화면`}
+                fill
+                sizes="(max-width: 448px) 100vw, 448px"
+                className="object-contain"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                openLightbox(
+                  lightboxIndex === 0
+                    ? GALLERY_IMAGES.length - 1
+                    : lightboxIndex - 1,
+                )
               }
+              aria-label="이전 사진"
+              className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-2xl text-white"
             >
-              {GALLERY_IMAGES.map((src, index) => (
-                <SwiperSlide key={src}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt={`갤러리 사진 ${index + 1} 전체화면`}
-                    className="mx-auto max-h-[80vh] w-auto object-contain"
-                  />
-                </SwiperSlide>
-              ))}
-            </Swiper>
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                openLightbox(
+                  lightboxIndex === GALLERY_IMAGES.length - 1
+                    ? 0
+                    : lightboxIndex + 1,
+                )
+              }
+              aria-label="다음 사진"
+              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-2xl text-white"
+            >
+              ›
+            </button>
           </div>
         </div>
       )}

@@ -36,3 +36,32 @@ body {
     transform: translateY(0);
   }
 }
+
+.gallery-featured {
+  overflow: visible;
+}
+
+.gallery-featured .swiper-slide {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  z-index: 1 !important;
+  border-radius: 14px;
+  opacity: 0.42;
+  filter: blur(2px) saturate(0.75);
+  transition:
+    opacity 240ms ease,
+    filter 240ms ease,
+    scale 240ms ease;
+}
+
+.gallery-featured .swiper-slide-active {
+  opacity: 1;
+  filter: none;
+  scale: 1.08;
+  z-index: 3 !important;
+}
+
+.gallery-featured .swiper-slide > div {
+  border-radius: inherit;
+}
